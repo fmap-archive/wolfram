@@ -1,6 +1,6 @@
 import Data.Automata.Wolfram
 import Data.Automata.Wolfram.Types
-import Data.Automata.Wolfram.Writers
+import Data.Automata.Wolfram.Writers.Text
 
 initial :: Universe State
 initial = expand $ toUniverse $ map toState starter
