@@ -2,7 +2,7 @@ module Data.Automata.Wolfram.Types.State where
 
 import Data.Char (intToDigit)
 
-data State = A | I
+data State = A | I deriving (Eq)
 
 class Stateable a where
   toState :: a -> State
