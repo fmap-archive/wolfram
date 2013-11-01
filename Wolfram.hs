@@ -1,10 +1,56 @@
 import Numeric (showIntAtBase)
 import Data.Char (intToDigit)
+import Control.Comonad
 
-data State      = A | I
-type Rule       = [State]
-type Cells      = [State]
-type Neighbours = [State]
+type Rule = [State]
+data State = A | I
+data Universe x = Universe [x] x [x]
+
+neighbours :: Universe x -> (x,x,x)
+neighbours (Universe (a:as) b (c:cs)) = (a,b,c)
+
+right :: Universe x -> Universe x
+right (Universe as b (c:cs)) = Universe (b:as) c cs
+
+left :: Universe x -> Universe x
+left (Universe (a:as) b cs) = Universe as a (b:cs)
+
+instance Functor Universe where
+  fmap fn (Universe as b cs) = Universe (map fn as) (fn b) (map fn cs)
+
+instance Comonad Universe where
+  extract (Universe _ c _) = c
+  duplicate uni  = Universe (tail $ iterate left uni) uni (tail $ iterate right uni)
+
+expand :: Universe State -> Universe State
+expand (Universe as b cs) = Universe (as ++ repeat I) b (cs ++ repeat I)
+
+applyRule :: Rule -> Universe State -> State
+applyRule r u = (r!!) $ case (neighbours u) of
+  (A,A,A) -> 0
+  (A,A,I) -> 1
+  (A,I,A) -> 2
+  (A,I,I) -> 3
+  (I,A,A) -> 4
+  (I,A,I) -> 5
+  (I,I,A) -> 6
+  (I,I,I) -> 7
+
+automata :: Int -> Universe State -> [Universe State]
+automata = iterate . transition . intToRule
+
+transition :: Rule -> Universe State -> Universe State
+transition rule = (=>> applyRule rule) 
+
+toUniverse :: [a] -> Universe a
+toUniverse xs = Universe begin middle end
+  where begin  = take hlen xs
+        middle = xs!!hlen
+        end    = drop (succ hlen) xs
+        hlen   = flip div 2 . length $ xs 
+
+toList :: Int -> Universe a -> [a]
+toList n (Universe as b cs) = take n as ++ return b ++ take n cs
 
 pad :: Int -> a -> [a] -> [a]
 pad len with list 
@@ -27,49 +73,27 @@ instance Stateable Char where
 instance Stateable Int where
   toState = toState . intToDigit
 
-neighbours :: Int -> Cells -> Neighbours
-neighbours i = pad 3 I . take 3 . drop (i-1) . edgecase
-  where edgecase = if i==0 then (I:) else id
-
-applyRule :: Rule -> Neighbours -> State
-applyRule rule neighbours = (rule!!) $ case neighbours of 
-  [A,A,A] -> 0
-  [A,A,I] -> 1
-  [A,I,A] -> 2
-  [A,I,I] -> 3
-  [I,A,A] -> 4
-  [I,A,I] -> 5
-  [I,I,A] -> 6
-  [I,I,I] -> 7
-
-toNeighbourList :: Cells -> [Neighbours]
-toNeighbourList cells = map (flip neighbours cells) [1..length cells]
-
-collapseNeighbours :: Rule -> [Neighbours] -> Cells
-collapseNeighbours = map . applyRule
-
-transition :: Rule -> Cells -> Cells
-transition rule = collapseNeighbours rule . toNeighbourList
-
-automata :: Int -> (Cells -> Cells)
-automata = transition . intToRule
-
-wolfram255 :: [Cells -> Cells]
-wolfram255 = map automata [0..255]
+instance (Show a) => Show (Universe a) where
+  show (Universe xs y zs) = concat . map show $
+    [ xs 
+    , return y 
+    , zs
+    ]
 
 instance Show State where
   show A = "■"
   show I = " "
   showList = showString . concat . map show
 
-runner :: Int -> String -> IO ()
-runner rule state = do
+runner :: Int -> String -> (Int, Int) -> IO ()
+runner rule initial (x,y) = do
   putStrLn $ "\n\nRule " ++ show rule ++ ":\n"
-  let computer = iterate $ automata rule
-  let initial = map toState state
-  mapM_ print $ take 10 $ computer initial
-
+  let universe  = expand $ toUniverse $ map toState initial
+  let universes = automata rule universe
+  mapM_ print $ take y . map (toList $ x `div` 2) $ universes
+  
 main :: IO ()
-main = foldr (>>) epsilon $ map (flip runner starter) [0..255]
+main = foldr (>>) epsilon $ map (\n -> runner n starter dimensions) [0..255]
   where epsilon = return ()
         starter = "00010011011111000000000000010100101010"
+        dimensions = (60,30)
