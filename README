@@ -1,4 +1,24 @@
+import Data.Automata.Wolfram
+import Data.Automata.Wolfram.Types
+import Data.Automata.Wolfram.Writers
 
+initial :: Universe State
+initial = expand $ toUniverse $ map toState starter
+  where starter = "00010011011111000000000000010100101010"
+
+describeAutomata :: Int -> (Int, Int) -> String
+describeAutomata n (x, y) = unlines $
+  [ "Rule " ++ show n ++ ":\n"
+  , showAutomata (x, y) $ automata n initial 
+  , "\n"
+  ]
+
+main :: IO ()
+main = mapM_ putStrLn $ do
+  x <- [1..2^8-1]
+  return $ describeAutomata x (60, 15)
+
+* * * 
 
 Rule 0:
 
